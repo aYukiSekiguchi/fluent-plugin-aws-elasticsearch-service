@@ -161,9 +161,11 @@ gem 'nokogiri', '~> 1', require: false # one of xml library (ox, oga, libxml, no
 
 to satisfy additional dependencies for using in production environment.
 
-- run ` BUNDLE_GEMFILE="Gemfile.local" bundle install` to install dependencies.
-- To test, run ` BUNDLE_GEMFILE="Gemfile.local" bundle exec rspec`.
-- To install this gem onto your local machine, run `bundle exec rake install`
+- Run ` BUNDLE_GEMFILE="Gemfile.local" bundle install` to install dependencies.
+- To test:
+  - launch elasticsearch in localhost with listening port `9200` in advance.
+  - run ` BUNDLE_GEMFILE="Gemfile.local" bundle exec rspec`.
+- To install this gem onto your local machine, run `bundle exec rake install`.
 - To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
 
 ## Contributing
