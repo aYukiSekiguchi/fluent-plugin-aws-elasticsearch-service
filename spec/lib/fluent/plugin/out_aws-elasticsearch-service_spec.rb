@@ -10,14 +10,14 @@ describe Fluent::Plugin::AwsElasticsearchServiceOutput do
       %[
       <endpoint>
         region us-east-1
-        url  xxxxxxxxxxxxxxxxxxxx
+        url  http://localhost:9200
       </endpoint>
       ]
     end
 
     it "`endpoint` is array." do
       instance.endpoint.map do |ep|
-        expect(ep[:url]).to eq "xxxxxxxxxxxxxxxxxxxx"
+        expect(ep[:url]).to eq "http://localhost:9200"
       end
     end
 
