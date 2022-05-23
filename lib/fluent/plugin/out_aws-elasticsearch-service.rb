@@ -82,7 +82,11 @@ module Fluent::Plugin
           if opts[:assume_role_arn].nil?
             aws_container_credentials_relative_uri = opts[:ecs_container_credentials_relative_uri] || ENV["AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"]
             if aws_container_credentials_relative_uri.nil?
-              credentials = Aws::SharedCredentials.new({retries: 2}).credentials
+              begin
+                credentials = Aws::SharedCredentials.new({retries: 2}).credentials
+              rescue Aws::Errors::NoSuchProfileError
+                credentials = nil
+              end
               credentials ||= Aws::InstanceProfileCredentials.new.credentials
               credentials ||= Aws::ECSCredentials.new.credentials
             else
