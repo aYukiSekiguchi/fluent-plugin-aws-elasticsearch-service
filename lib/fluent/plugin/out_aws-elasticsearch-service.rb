@@ -82,7 +82,11 @@ module Fluent::Plugin
           if opts[:assume_role_arn].nil?
             aws_container_credentials_relative_uri = opts[:ecs_container_credentials_relative_uri] || ENV["AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"]
             if aws_container_credentials_relative_uri.nil?
-              credentials = Aws::SharedCredentials.new({retries: 2}).credentials
+              begin
+                credentials = Aws::SharedCredentials.new({retries: 2}).credentials
+              rescue Aws::Errors::NoSuchProfileError
+                credentials = nil
+              end
               credentials ||= Aws::InstanceProfileCredentials.new.credentials
               credentials ||= Aws::ECSCredentials.new.credentials
             else
@@ -141,62 +145,79 @@ module Fluent::Plugin
     module Elasticsearch
 
       class Client < ::Elasticsearch::Client
-        def verify_with_version_or_header(body, version, headers)
+        def verify_with_version_or_header(version, headers)
           @verified = true
         end
       end
+    end
+  end
+end
 
-      module Transport
-        module Transport
-          module HTTP
-            class Faraday < ::Elasticsearch::Transport::Transport::HTTP::Faraday
+# Support for changing elasticsearch-transport name
+begin
+  require 'elastic/transport'
+  ::ELASTIC_MODULE = Elastic
+rescue LoadError
+end
+begin
+  require 'elasticsearch/transport'
+  ::ELASTIC_MODULE = Elasticsearch
+rescue LoadError
+end
 
-              alias :__build_connections_origin_from_aws_elasticsearch_service_output :__build_connections
+#
+# monkey patch
+#
+module ELASTIC_MODULE
+  module Transport
+    module Transport
+      module HTTP
+        class Faraday
+          alias :__build_connections_origin_from_aws_elasticsearch_service_output :__build_connections
 
-              # Builds and returns a collection of connections.
-              #
-              # @return [Connections::Collection]
-              # @override
-              #
-              def __build_connections
-                ::Elasticsearch::Transport::Transport::Connections::Collection.new(
-                  :connections => hosts.map { |host|
-                    host[:protocol]   = host[:scheme] || DEFAULT_PROTOCOL
-                    host[:port]     ||= DEFAULT_PORT
-                    url               = __full_url(host)
+          # Builds and returns a collection of connections.
+          #
+          # @return [Connections::Collection]
+          # @override
+          #
+          def __build_connections
+            ::TRANSPORT_CLASS::Transport::Connections::Collection.new(
+              :connections => hosts.map { |host|
+                host[:protocol]   = host[:scheme] || DEFAULT_PROTOCOL
+                host[:port]     ||= DEFAULT_PORT
+                url               = __full_url(host)
 
-                    ::Elasticsearch::Transport::Transport::Connections::Connection.new(
-                      :host => host,
-                      :connection => ::Faraday::Connection.new(
-                        url,
-                        (options[:transport_options] || {}),
-                        &__aws_elasticsearch_service_setting(host, &@block)
-                      ),
-                      :options => host[:connection_options]
-                    )
-                  },
-                  :selector_class => options[:selector_class],
-                  :selector => options[:selector]
+                client =  ::Faraday.new(
+                  url,
+                  (options[:transport_options] || {}),
+                  &__aws_elasticsearch_service_setting(host, &@block)
                 )
-              end
+                apply_headers(client, (options[:transport_options] || {}))
+                ::TRANSPORT_CLASS::Transport::Connections::Connection.new(
+                  :host => host,
+                  :connection => client,
+                  :options => host[:connection_options]
+                )
+              },
+              :selector_class => options[:selector_class],
+              :selector => options[:selector]
+            )
+          end
 
-              def __aws_elasticsearch_service_setting(host, &block)
-                lambda do |faraday|
-                  if host[:aws_elasticsearch_service]
-                    faraday.request :aws_sigv4,
-                                    credentials: host[:aws_elasticsearch_service][:credentials],
-                                    service_name: 'es',
-                                    region: host[:aws_elasticsearch_service][:region]
-                  end
-                  block.call faraday
-                end
+          def __aws_elasticsearch_service_setting(host, &block)
+            lambda do |faraday|
+              if host[:aws_elasticsearch_service]
+                faraday.request :aws_sigv4,
+                                credentials: host[:aws_elasticsearch_service][:credentials],
+                                service_name: 'es',
+                                region: host[:aws_elasticsearch_service][:region]
               end
+              block.call faraday
             end
           end
         end
       end
     end
-
   end
 end
 
